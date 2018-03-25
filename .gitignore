@@ -1,0 +1,12 @@
+*.pro.user
+build-*/*
+build-*/*/*
+.qmake.stash
+Makefile*
+debug/*
+release/*
+*.user
+ui_*.h
+*_plugin_import.cpp
+*.Debug
+*.Release
