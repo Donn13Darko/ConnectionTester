@@ -315,20 +315,13 @@ void MainWindow::UDP_RecvMSG()
 
 void MainWindow::on_selectTestSuite_clicked()
 {
-    // Setup and parse inputs
-    QStringList filePaths;
-    QFileDialog newTestFS(this);
-    newTestFS.setFileMode(QFileDialog::AnyFile);
-    newTestFS.setViewMode(QFileDialog::Detail);
-
-    // Verify file
-    if (newTestFS.exec())
-    {
-        filePaths = newTestFS.selectedFiles();
-    }
+    QString filePath;
+    filePath = QFileDialog::getOpenFileName(this, tr("Select Test Suite"),
+                                            "", tr("All Files (*)"));;
 
     // Append to test suite list
-    ui->testPathEdit->setText(filePaths[0]);
+    if (!filePath.isEmpty())
+        ui->testPathEdit->setText(filePath);
 }
 
 void MainWindow::on_runTestSuite_clicked()
@@ -341,39 +334,54 @@ void MainWindow::on_runTestSuite_clicked()
         return;
     }
 
+    // Clear data arrays
     ui->recvData->clear();
     ui->testOut->clear();
 
+    // Setup progress bar
     int progress = 0;
     ui->testProgress->setValue(progress);
 
+    // Open test file & begin reading tests
     QFile testFile(filePath);
     if (testFile.open(QIODevice::ReadOnly | QIODevice::Text))
     {
         QTextStream testStream(&testFile);
 
+        // Find number of tests to send
         int testLines = 0;
         QString testMSG = testStream.readLine();;
-        while (!testStream.atEnd() && (testMSG == "END TESTS"))
+        while (!testStream.atEnd() && !testMSG.isEmpty())
         {
-            testMSG = testStream.readLine();
             testLines += 1;
+            testMSG = testStream.readLine();
         }
         testStream.seek(0);
 
+        // Send each test case
         int curLine = 0;
         while (curLine < testLines)
         {
             curLine += 1;
             sendMSG(testStream.readLine().toLocal8Bit());
 
+            // Update progress bar
             ui->testProgress->setValue((100*curLine)/testLines);
             qApp->processEvents();
+
+            // Wait for a response (allows time for send and recv)
             Sleep(100);
         }
         testStream.readLine();
 
+        // Wait for data responses (if any)
+        Sleep(1000);
+
+        // Read in responses from GUI box (and remove start)
         QStringList testRECV = ui->recvData->toPlainText().split('\n');
+        testRECV.replaceInStrings(QRegExp("[^:]*: "), "");
+
+        // Parse expected responses from text file
         QStringList testRESP;
         while (!testStream.atEnd())
         {
