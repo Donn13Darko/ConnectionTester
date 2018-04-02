@@ -7,6 +7,7 @@
 #include <QUdpSocket>
 #include <QNetworkDatagram>
 #include <QAction>
+#include <QCloseEvent>
 
 namespace Ui {
     class MainWindow;
@@ -29,6 +30,8 @@ class MainWindow : public QMainWindow
 public:
     explicit MainWindow(QWidget *parent = 0);
     ~MainWindow();
+
+    void closeEvent(QCloseEvent* e);
 
 private slots:
     void UDP_Bind();

@@ -38,9 +38,9 @@ MainWindow::MainWindow(QWidget *parent) :
 
     connect(ui->clearRECV, SIGNAL(clicked()), ui->recvData, SLOT(clear()));
 
-    // Start servers listening
-    ui->sUDP_Bind->clicked();
-    ui->sTCP_Reset->clicked();
+    // Set servers button text
+    ui->sUDP_Bind->setText("Bind");
+    ui->sTCP_Reset->setText("Start");
 
     // Clear label
     ui->infoLabel->clear();
@@ -58,36 +58,47 @@ MainWindow::~MainWindow()
     delete ui;
 }
 
+void MainWindow::closeEvent(QCloseEvent* e)
+{
+    TCPserver->close();
+    TCPserver_Client->disconnectFromHost();
+    TCPclient->disconnectFromHost();
+    UDPserver->disconnectFromHost();
+
+    e->accept();
+}
+
 void MainWindow::UDP_Bind()
 {
     // Get current info
     SockInfo info;
     getInfo(sender(), &info);
 
-    // Unbind if already bound
-    UDP_Unbind();
-    if (ui->infoLabel->text().contains("Failed"))
+    // Bind/Unbind to socket
+    if (UDPserver->state() != QUdpSocket::BoundState)
     {
-        return;
-    }
+        info.udp->bind(info.port);
 
-    // Bind to socket
-    info.udp->bind(info.port);
+        // Need to wait for connection
+        QString msg = ui->infoLabel->text();
+        QString conPeer = QString::number(info.port) + "! ";
+        if ((info.udp->state() != QUdpSocket::BoundState)
+                && !info.udp->waitForConnected(5000))
+        {
+            ui->sUDP_Bind->setText("Bind");
+            msg += "Failed to bind to Port " + conPeer;
+        } else
+        {
+            ui->sUDP_Bind->setText("Unbind");
+            msg += "Bound UDP Server to Port " + conPeer;
+        }
 
-    // Need to wait for connection
-    QString msg = ui->infoLabel->text();
-    QString conPeer = QString::number(info.port) + "! ";
-    if ((info.udp->state() != QUdpSocket::BoundState)
-            && !info.udp->waitForConnected(5000))
-    {
-        msg += "Failed to bind to " + conPeer;
+        // Update info label & button
+        ui->infoLabel->setText(msg);
     } else
     {
-        msg += "Bound UDP Server to " + conPeer;
+        UDP_Unbind();
     }
-
-    // Update info label
-    ui->infoLabel->setText(msg);
 }
 
 void MainWindow::UDP_Unbind()
@@ -114,9 +125,11 @@ void MainWindow::UDP_Unbind()
     if ((info.udp->state() == QUdpSocket::BoundState)
             && !info.udp->waitForDisconnected(5000))
     {
+        ui->sUDP_Bind->setText("Unbind");
         disMsg = "Failed to unbind UDP Server from " + conPeer;
     } else
     {
+        ui->sUDP_Bind->setText("Bind");
         disMsg = "Unbound UDP Server from " + conPeer;
     }
 
@@ -204,15 +217,40 @@ void MainWindow::TCP_Server_Reset()
     SockInfo info;
     getInfo(sender(), &info);
 
-    // Disconnect from existing TCP socket
-    TCP_Disconnect();
-    if (ui->infoLabel->text().contains("Failed"))
+    // Turn on/off tcp server
+    if ((sender() == TCPserver_Client)
+         || ((sender() == ui->sTCP_Reset) && (ui->sTCP_Reset->text() == "Start")))
     {
-        return;
-    }
+        QString msg;
+        if (sender() == TCPserver_Client)
+            msg += "TCP Server connection lost!";
 
-    TCPserver->close();
-    TCPserver->listen(QHostAddress::Any, info.port);
+        if (TCPserver->listen(QHostAddress::Any, info.port))
+        {
+            ui->sTCP_Reset->setText("Stop");
+            msg += " TCP Server listening on Port " + QString::number(info.port) + "!";
+        } else
+        {
+            ui->sTCP_Reset->setText("Start");
+            msg += " Failed to start TCP Server listening!";
+        }
+
+        ui->infoLabel->setText(msg);
+    } else
+    {
+        // Disconnect from existing TCP socket
+        TCP_Disconnect();
+        if (ui->infoLabel->text().contains("Failed"))
+        {
+            return;
+        }
+
+        // Close connection (stop listening)
+        TCPserver->close();
+
+        // Set text
+        ui->sTCP_Reset->setText("Start");
+    }
 }
 
 void MainWindow::TCP_Server_Connect()
@@ -223,9 +261,10 @@ void MainWindow::TCP_Server_Connect()
         TCP_Disconnect();
         if (ui->infoLabel->text().contains("Failed"))
         {
+            ui->sTCP_Reset->setText("Stop");
             return;
         }
-        delete TCPserver_Client;
+        TCPserver_Client->deleteLater();
     }
 
     // Assign the waiting connection to TCPserver_Client
@@ -240,6 +279,7 @@ void MainWindow::TCP_Server_Connect()
         QString curInfo = ui->infoLabel->text();
         QString peerIP = TCPserver_Client->peerAddress().toString();
         ui->infoLabel->setText(curInfo + "TCP Server connected to " + peerIP + "! ");
+        ui->sTCP_Reset->setText("Stop");
     }
 }
 
@@ -317,7 +357,7 @@ void MainWindow::on_selectTestSuite_clicked()
 {
     QString filePath;
     filePath = QFileDialog::getOpenFileName(this, tr("Select Test Suite"),
-                                            "", tr("All Files (*)"));;
+                                            "", tr("All Files (*)"));
 
     // Append to test suite list
     if (!filePath.isEmpty())
