@@ -6,7 +6,6 @@
 #include <QTcpServer>
 #include <QUdpSocket>
 #include <QNetworkDatagram>
-#include <QAction>
 #include <QCloseEvent>
 
 namespace Ui {
