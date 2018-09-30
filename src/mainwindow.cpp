@@ -20,7 +20,7 @@ MainWindow::MainWindow(QWidget *parent) :
     UDPclient = new QUdpSocket(this);
     UDPserver = new QUdpSocket(this);
     TCPclient = new QTcpSocket(this);
-    TCPserver_Client = new QTcpSocket(this);
+    TCPserver_Client = nullptr;
     TCPserver = new QTcpServer(this);
     TCPserver->setMaxPendingConnections(1);
 
@@ -49,7 +49,7 @@ MainWindow::MainWindow(QWidget *parent) :
 MainWindow::~MainWindow()
 {
     delete TCPclient;
-    delete TCPserver_Client;
+    if (TCPserver_Client) delete TCPserver_Client;
     delete TCPserver;
 
     delete UDPclient;
@@ -61,7 +61,7 @@ MainWindow::~MainWindow()
 void MainWindow::closeEvent(QCloseEvent* e)
 {
     TCPserver->close();
-    TCPserver_Client->disconnectFromHost();
+    if (TCPserver_Client) TCPserver_Client->disconnectFromHost();
     TCPclient->disconnectFromHost();
     UDPserver->disconnectFromHost();
 
@@ -155,7 +155,7 @@ void MainWindow::TCP_Connect()
     // Need to wait for TCP connection
     QString msg = ui->infoLabel->text();
     QString conPeer = info.ip + ":" + QString::number(info.port) + "! ";
-    if ((info.tcp->state() != QUdpSocket::ConnectedState)
+    if ((info.tcp->state() != QTcpSocket::ConnectedState)
             && !info.tcp->waitForConnected(5000))
     {
         msg += "Failed to connect TCP Client to " + conPeer;
@@ -256,7 +256,7 @@ void MainWindow::TCP_Server_Reset()
 void MainWindow::TCP_Server_Connect()
 {
     // Disconnect old connection (should not be called)
-    if (TCPserver_Client->state() == QTcpSocket::ConnectedState)
+    if (TCPserver_Client && (TCPserver_Client->state() == QTcpSocket::ConnectedState))
     {
         TCP_Disconnect();
         if (ui->infoLabel->text().contains("Failed"))
@@ -491,12 +491,12 @@ void MainWindow::appendMSG(QByteArray msg)
 void MainWindow::sendMSG(QByteArray msg)
 {
     // Send message to checked boxes
-    if (ui->cTCP_SCheck->isChecked())
+    if (ui->cTCP_SCheck->isChecked() && TCPclient)
     {
         TCPclient->write(msg);
     }
 
-    if (ui->sTCP_SCheck->isChecked())
+    if (ui->sTCP_SCheck->isChecked() && TCPserver_Client)
     {
         TCPserver_Client->write(msg);
     }
